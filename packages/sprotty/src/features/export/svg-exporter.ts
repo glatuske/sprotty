@@ -81,10 +81,28 @@ export class SvgExporter {
         const svgElementNew = docCopy.querySelector('svg')!;
         svgElementNew.removeAttribute('opacity');
         // inline-size copied from sprotty-hidden svg shrinks the svg so it is not visible.
-        this.copyStyles(svgElementOrig, svgElementNew, ['width', 'height', 'opacity', 'inline-size']);
+        //this.copyStyles(svgElementOrig, svgElementNew, ['width', 'height', 'opacity', 'inline-size']);
+
+        const rules = Array.from(document.styleSheets)
+            .reduce((sum, sheet) => {
+                // errors in CORS at some sheets (e.g. qiita)
+                // like: "Uncaught DOMException: Failed to read the 'cssRules' property from 'CSSStyleSheet': Cannot access rules"
+                try {
+                    return [...sum, ...Array.from(sheet.cssRules).map(rule => rule.cssText)];
+                } catch (e) {
+                    // console.log('errored', e);
+                    return sum;
+                }
+            }, []);
+
+        const style = docCopy.createElement('style');
+        style.textContent =   rules.join('\n');
+        svgElementNew.appendChild(style);
+
         svgElementNew.setAttribute('version', '1.1');
         const bounds = this.getBounds(root);
-        svgElementNew.setAttribute('viewBox', `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
+        svgElementNew.setAttribute('width', `${bounds.width}`);
+        svgElementNew.setAttribute('height', `${bounds.height}`);
         const svgCode = serializer.serializeToString(svgElementNew);
         document.body.removeChild(iframe);
         return svgCode;
@@ -115,7 +133,7 @@ export class SvgExporter {
     }
 
     protected getBounds(root: SModelRootImpl) {
-        const allBounds: Bounds[] = [ Bounds.EMPTY ];
+        const allBounds: Bounds[] = [Bounds.EMPTY];
         root.children.forEach(element => {
             if (isBoundsAware(element)) {
                 allBounds.push(element.bounds);
